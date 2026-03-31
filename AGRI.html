@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Agri Machinery System - Firebase</title>
+<style>
+/* ===== PROFESSIONAL STYLING ===== */
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(to right, #e0f7fa, #ffffff); margin:0; padding:0;}
+h1,h2,h3 {color:#00695c;text-align:center;}
+.container {max-width:1200px;margin:20px auto;padding:20px;}
+form,.summary,.login-box,.register-box {background:#ffffffcc;box-shadow:0 4px 15px rgba(0,0,0,0.1);border-radius:12px;padding:20px;margin-bottom:20px;}
+input,select {padding:10px;margin:8px 0;width:90%;border:1px solid #b2dfdb;border-radius:6px;outline:none;display:block;margin-left:auto;margin-right:auto;}
+input:focus, select:focus {border-color:#00695c;box-shadow:0 0 5px #00695c66;}
+button {padding:10px 16px;border:none;border-radius:6px;cursor:pointer;font-weight:bold;transition:all 0.3s ease;margin:5px;}
+button:hover{opacity:0.9;}
+.add{background:#00796b;color:white;}
+.delete{background:#d32f2f;color:white;}
+.edit{background:#f57c00;color:white;}
+.export{background:#1976d2;color:white;}
+.logout{background:#424242;color:white;float:right;}
+table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.05);}
+th,td{padding:12px;border-bottom:1px solid #eeeeee;text-align:center;}
+th{background-color:#004d40;color:white;}
+.login-box,.register-box{max-width:400px;margin:80px auto;text-align:center;}
+.summary{background:#ffffffcc;border-radius:12px;padding:20px;box-shadow:0 4px 15px rgba(0,0,0,0.1);}
+a{color:#00796b;text-decoration:none;}
+a:hover{text-decoration:underline;}
+.hidden{display:none;}
+@media(max-width:768px){input,select{width:95%;}table,th,td{font-size:14px;}}
+</style>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginPage" class="login-box">
+<h2>🔐 Login</h2>
+<input type="email" id="loginUsername" placeholder="Email">
+<input type="password" id="loginPassword" placeholder="Password"><br>
+<button onclick="login()">Login</button>
+<p style="margin-top:10px;">Don't have an account? <a href="#" onclick="showRegister()">Register Now</a></p>
+<p id="loginError" style="color:red;"></p>
+</div>
+
+<!-- REGISTER -->
+<div id="registerPage" class="register-box hidden">
+<h2>📝 Register</h2>
+<input type="email" id="regUsername" placeholder="Email">
+<input type="password" id="regPassword" placeholder="Password">
+<select id="regRole">
+<option value="staff">Staff</option>
+<option value="admin">Admin</option>
+</select><br>
+<button onclick="register()">Register</button>
+<p style="margin-top:10px;">Already have an account? <a href="#" onclick="showLogin()">Login</a></p>
+<p id="regError" style="color:red;"></p>
+</div>
+
+<!-- MAIN SYSTEM -->
+<div id="mainPage" class="hidden">
+<div class="container">
+<button class="logout" onclick="logout()">Logout</button>
+<h1>🚜 Agriculture Machinery Database</h1>
+
+<form id="form">
+<input type="hidden" id="editKey">
+<input type="text" id="machine" placeholder="Machine Type" required>
+<input type="text" id="owner" placeholder="Owner" required>
+<input type="text" id="barangay" placeholder="Barangay" required>
+<select id="status">
+<option>Available</option>
+<option>In Use</option>
+<option>Under Repair</option>
+</select>
+<input type="date" id="date">
+<button class="add" type="submit">Save</button>
+</form>
+
+<button id="exportBtn" class="export" onclick="exportCSV()">📥 Export</button>
+
+<table>
+<thead>
+<tr>
+<th>Machine</th>
+<th>Owner</th>
+<th>Barangay</th>
+<th>Status</th>
+<th>Date</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="tableBody"></tbody>
+</table>
+
+<div class="summary">
+<h3>📊 Dashboard</h3>
+<p id="totalMachines"></p>
+<ul id="statusSummary"></ul>
+</div>
+</div>
+
+<script>
+// ===== FIREBASE CONFIG =====
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "1234567890",
+  appId: "YOUR_APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+// ===== PAGE NAVIGATION =====
+function showRegister(){document.getElementById("loginPage").classList.add("hidden");document.getElementById("registerPage").classList.remove("hidden");}
+function showLogin(){document.getElementById("registerPage").classList.add("hidden");document.getElementById("loginPage").classList.remove("hidden");}
+
+// ===== REGISTER =====
+function register(){
+  const email=document.getElementById("regUsername").value;
+  const password=document.getElementById("regPassword").value;
+  const role=document.getElementById("regRole").value;
+  auth.createUserWithEmailAndPassword(email,password)
+    .then(userCredential=>{
+      const uid=userCredential.user.uid;
+      db.ref("users/"+uid).set({role});
+      alert("Account created! You can now login."); showLogin();
+    })
+    .catch(error=>{document.getElementById("regError").innerText=error.message;});
+}
+
+// ===== LOGIN =====
+function login(){
+  const email=document.getElementById("loginUsername").value;
+  const password=document.getElementById("loginPassword").value;
+  auth.signInWithEmailAndPassword(email,password)
+    .then(userCredential=>{
+      const uid=userCredential.user.uid;
+      db.ref("users/"+uid).once("value").then(snapshot=>{
+        localStorage.setItem("role",snapshot.val().role);
+        showMain();
+      });
+    })
+    .catch(error=>{document.getElementById("loginError").innerText=error.message;});
+}
+
+// ===== LOGOUT =====
+function logout(){auth.signOut();localStorage.removeItem("role");location.reload();}
+
+// ===== SHOW MAIN =====
+function showMain(){
+  document.getElementById("loginPage").classList.add("hidden");
+  document.getElementById("registerPage").classList.add("hidden");
+  document.getElementById("mainPage").classList.remove("hidden");
+}
+
+// ===== MACHINERY DATABASE =====
+document.getElementById("form").addEventListener("submit",function(e){
+  e.preventDefault();
+  const machine=document.getElementById("machine").value;
+  const owner=document.getElementById("owner").value;
+  const barangay=document.getElementById("barangay").value;
+  const status=document.getElementById("status").value;
+  const date=document.getElementById("date").value;
+  const editKey=document.getElementById("editKey").value;
+
+  if(editKey){
+    db.ref("machinery/"+editKey).set({machine,owner,barangay,status,date});
+  }else{
+    const key=db.ref("machinery").push().key;
+    db.ref("machinery/"+key).set({machine,owner,barangay,status,date});
+  }
+  document.getElementById("form").reset();
+  document.getElementById("editKey").value="";
+});
+
+// ===== REALTIME LISTENER =====
+db.ref("machinery").on("value",snapshot=>{
+  const data=snapshot.val()||{};
+  renderDataTable(data);
+});
+
+function renderDataTable(data){
+  const tbody=document.getElementById("tableBody");
+  tbody.innerHTML="";
+  let statusCount={};
+  const role=localStorage.getItem("role");
+  for(let key in data){
+    const item=data[key];
+    statusCount[item.status]=(statusCount[item.status]||0)+1;
+    tbody.innerHTML+=`<tr>
+      <td>${item.machine}</td>
+      <td>${item.owner}</td>
+      <td>${item.barangay}</td>
+      <td>${item.status}</td>
+      <td>${item.date||""}</td>
+      <td>
+        <button class="edit" onclick="editData('${key}')" style="${role==='staff'?'display:none;':''}">Edit</button>
+        <button class="delete" onclick="deleteData('${key}')" style="${role==='staff'?'display:none;':''}">Delete</button>
+      </td>
+    </tr>`;
+  }
+  document.getElementById("totalMachines").innerText="Total Machines: "+Object.keys(data).length;
+  const list=document.getElementById("statusSummary"); list.innerHTML="";
+  for(let s in statusCount){list.innerHTML+=`<li>${s}: ${statusCount[s]}</li>`;}
+}
+
+function editData(key){
+  db.ref("machinery/"+key).once("value").then(snapshot=>{
+    const d=snapshot.val();
+    document.getElementById("machine").value=d.machine;
+    document.getElementById("owner").value=d.owner;
+    document.getElementById("barangay").value=d.barangay;
+    document.getElementById("status").value=d.status;
+    document.getElementById("date").value=d.date;
+    document.getElementById("editKey").value=key;
+  });
+}
+
+function deleteData(key){db.ref("machinery/"+key).remove();}
+
+// ===== EXPORT CSV =====
+function exportCSV(){
+  if(localStorage.getItem("role")!=="admin") return;
+  db.ref("machinery").once("value").then(snapshot=>{
+    const data=snapshot.val()||{};
+    let csv="Machine,Owner,Barangay,Status,Date\n";
+    for(let key in data){
+      const d=data[key];
+      csv+=`${d.machine},${d.owner},${d.barangay},${d.status},${d.date}\n`;
+    }
+    const blob=new Blob([csv],{type:"text/csv"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="machinery.csv";
+    a.click();
+  });
+}
+</script>
+</body>
+</html>
